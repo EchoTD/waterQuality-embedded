@@ -59,30 +59,30 @@ void loop() {
 void updateSampling() {
   unsigned long now = millis();
   
-  // Sample at regular intervals.
   if (now - lastSampleTime >= sampleInterval) {
     sensorManager.update();
     SensorData data = sensorManager.getSensorData();
     if (!isnan(data.temperature)) {
       sumTemperature += data.temperature;
-      Serial.println(data.temperature);
+      Serial.print(data.temperature);
       sampleCount++;
+      Serial.print("\t");
+      Serial.println(sampleCount);
     } else {
       Serial.println("Warning: Invalid sensor reading encountered!");
     }
     lastSampleTime = now;
   }
   
-  // If the sampling phase is complete, compute the average and switch to SENDING.
   if (now - stateStartTime >= samplingDuration) {
     if (sampleCount > 0) {
       averageTemperature = sumTemperature / sampleCount;
     } else {
       Serial.println("Error: No valid sensor data collected during sampling.");
-      averageTemperature = 0.0;  // Consider a safe default or re-sampling approach.
+      averageTemperature = 0.0;
     }
     currentState = SENDING;
-    stateStartTime = now; // Reset state start time for the SENDING phase.
+    stateStartTime = now;
   }
 }
 
