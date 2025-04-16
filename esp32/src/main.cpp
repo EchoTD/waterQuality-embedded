@@ -2,7 +2,7 @@
 #include "SensorManager.h"
 #include "MQTTManager.h"
 
-const char* mqttServer = "broker.hivemq.com";
+const char* mqttServer = "mosquitto";
 const int mqttPort = 1883;
 
 // Instantiate sensor and MQTT managers.
