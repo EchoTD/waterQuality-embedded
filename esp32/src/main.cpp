@@ -29,6 +29,7 @@ void updateSending();
 void updateIdle();
 uint8_t crc8(const uint8_t *data, size_t len);
 void sendTemperature(float value);
+void printHexBuf(const uint8_t *buf, size_t len, const char *label);
 
 void setup() {
   Serial.begin(115200);
@@ -41,6 +42,26 @@ void setup() {
 }
 
 void loop() {
+  /* sensorManager.update();
+  float temp = sensorManager.getSensorData().temperature;
+
+  // ——— build packet: [ HEADER | 4-byte float | 1-byte CRC ] ———
+  uint8_t packet[6];
+  packet[0] = PKT_HEADER;
+  memcpy(packet + 1, &temp, sizeof(temp));
+  packet[5] = crc8(packet + 1, sizeof(temp));
+
+  Serial.print(F("TX → float="));
+  Serial.print(temp, 2);
+  Serial.print(F("  packet: "));
+  printHexBuf(packet, sizeof(packet), "");
+
+  // send in one go
+  lora.write(packet, sizeof(packet));
+  Serial.print(F("Sent → ")); Serial.println(temp, 2);
+
+  delay(1000);                      // send once per second */
+  
   switch (currentState) {
     case SAMPLING:
       updateSampling(); 
@@ -71,9 +92,9 @@ void updateSampling() {
       sampleCount++;
 
       // Debug
-      Serial.print(data.temperature);
+      /* Serial.print(data.temperature);
       Serial.print("\t");
-      Serial.println(sampleCount);
+      Serial.println(sampleCount); */
     }
     lastSampleMs = now;
   }
@@ -93,8 +114,8 @@ void updateSending() {
     sendTemperature(avgTemp);
 
     // Debug
-    Serial.print(F("Sent average temp: "));
-    Serial.println(avgTemp, 2);
+    /* Serial.print(F("Sent average temp: "));
+    Serial.println(avgTemp, 2); */
   }
 
   sumTemperature = 0.0f;
@@ -130,4 +151,14 @@ uint8_t crc8(const uint8_t *data, size_t len) {
       crc = (crc & 0x80) ? (crc << 1) ^ 0x31 : (crc << 1);
   }
   return crc;
+}
+
+void printHexBuf(const uint8_t *buf, size_t len, const char *label) {
+  Serial.print(label);
+  for (size_t i = 0; i < len; i++) {
+    if (buf[i] < 0x10) Serial.print('0');
+    Serial.print(buf[i], HEX);
+    Serial.print(' ');
+  }
+  Serial.println();
 }
