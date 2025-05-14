@@ -81,7 +81,7 @@ void loop() {
     }
   } */
 
-  mqttManager.loop();
+  /* mqttManager.loop();
 
   switch (currentState) {
     case SAMPLING:
@@ -97,7 +97,7 @@ void loop() {
       currentState = SAMPLING;
       stateStartTime = millis();
       break;
-  }
+  } */
 }
 
 void sendFloat(float f){

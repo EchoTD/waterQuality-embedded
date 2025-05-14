@@ -11,6 +11,7 @@ void SensorManager::begin() {
     analogReadResolution(12);
     analogSetAttenuation(ADC_11db);
     tempSensor.begin();
+    //gpsSerial.begin(GPSBaud, SERIAL_8N1, RXPin, TXPin);
 }
 
 void SensorManager::update() {

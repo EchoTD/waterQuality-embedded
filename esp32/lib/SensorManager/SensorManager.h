@@ -5,6 +5,7 @@
 #include "Data.h"
 #include "OneWire.h"
 #include "DallasTemperature.h"
+#include "TinyGPSPlus.h"
 
 class SensorManager {
 public:
@@ -18,6 +19,9 @@ private:
 
     OneWire oneWire;
     DallasTemperature tempSensor;
+
+    //TinyGPSPlus gps;
+    //HardwareSerial gpsSerial(2);
 
     void readTemperature();
 };
