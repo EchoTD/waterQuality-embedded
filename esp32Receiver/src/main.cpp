@@ -1,13 +1,24 @@
 #include <Arduino.h>
-#include "MQTTManager.h"   // enable if you actually want to push to MQTT
+#include <WiFi.h>
+#include <WiFiManager.h>
+#include <Preferences.h> 
+#include "MQTTManager.h"
 
 HardwareSerial lora(2);
 constexpr uint32_t BAUD   = 9600;
-constexpr uint8_t  HEADER = 0xAA;
+static const uint8_t HANDSHAKE = 0x55;
+static const uint8_t HEADER    = 0xAA;
+
+enum RxState { WAIT_HDR, READ_PAYLOAD };
+static RxState  rxState     = WAIT_HDR;
+static uint8_t  buf5[5];
+static uint8_t  bufIndex    = 0;
 
 const char* mqttServer = "172.34.6.157";
 const int mqttPort = 1883;
 MQTTManager mqtt(mqttServer, mqttPort);
+
+WiFiManager wm;
 
 void printHexBuf(const uint8_t *buf, size_t len, const char *label);
 
@@ -24,75 +35,72 @@ uint8_t crc8(const uint8_t *data, size_t len) {
 
 void setup() {
   Serial.begin(115200);
+  // try auto-connect for 10s
+  WiFi.mode(WIFI_STA);
+  WiFi.begin();
+  unsigned long t0 = millis();
+  while (WiFi.status() != WL_CONNECTED && millis() - t0 < 10000) {
+    delay(500); Serial.print('.');
+  }
+
+  if (WiFi.status() != WL_CONNECTED) {
+    wm.setConfigPortalTimeout(120);
+    if (!wm.startConfigPortal("ESP32-ECHO")) {
+      ESP.restart();
+    }
+    Serial.println("Connected via portal, IP=" + WiFi.localIP().toString());
+
+    // <— WRITE into Preferences here:
+    Preferences prefs;
+    prefs.begin("wifi-creds", false);
+    prefs.putString("ssid",     WiFi.SSID());
+    prefs.putString("password", WiFi.psk());
+    prefs.end();
+  }
+  else {
+    Serial.println("\nAuto-connected, IP=" + WiFi.localIP().toString());
+  }
+
   lora.begin(BAUD, SERIAL_8N1, 16, 17);
-  mqtt.begin();  // if using MQTTManager
+  lora.write(HANDSHAKE);
+  Serial.println(F("Sent handshake to TX"));
+
+  mqtt.begin();
   Serial.println(F("LoRa RX ready"));
 }
 
 void loop() {
-  /* // 1) show how many bytes are in RX buffer
-  int avail = lora.available();
-  if (avail > 0) {
-    Serial.printf("RX buffer has %d byte(s)\n", avail);
+  while (lora.available()) {
+    uint8_t b = lora.read();
+    unsigned long t = millis();
+    Serial.printf("[RX %lums] byte=0x%02X\n", t, b);
 
-    // 2) if we have at least full packet, read it all at once
-    if (avail >= 6) {
-      uint8_t buf[6];
-      int len = lora.readBytes(buf, sizeof(buf));
-      Serial.printf("readBytes returned %d\n", len);
-      printHexBuf(buf, len, "RAW PACKET: ");
-
-      // 3) check header
-      if (buf[0] != HEADER) {
-        Serial.printf("  → BAD HEADER 0x%02X  discarding one byte\n", buf[0]);
-        // flush one byte so next loop can realign
-        lora.read();
-        return;
+    if (rxState == WAIT_HDR) {
+      if (b == HEADER) {
+        rxState   = READ_PAYLOAD;
+        bufIndex  = 0;
       }
-
-      // 4) extract & print payload and CRC
-      float temp;
-      memcpy(&temp, buf + 1, sizeof(temp));
-      uint8_t crcRx   = buf[5];
-      uint8_t crcCalc = crc8(buf + 1, sizeof(temp));
-
-      Serial.printf("  → unpacked float=%.2f, CRC recv=0x%02X, CRC calc=0x%02X\n",
-                    temp, crcRx, crcCalc);
-
-      // 5) final CRC check
-      if (crcRx == crcCalc) {
-        Serial.print(F("  → CRC OK, value="));
-        Serial.println(temp, 2);
-      } else {
-        Serial.println(F("  → CRC MISMATCH!"));
+    } else {  // READ_PAYLOAD
+      buf5[bufIndex++] = b;
+      if (bufIndex == sizeof(buf5)) {
+        // unpack float
+        float temp;
+        memcpy(&temp, buf5, sizeof(temp));
+        uint8_t crcRx   = buf5[4];
+        uint8_t crcCalc = crc8(buf5, sizeof(temp));
+        Serial.printf(
+          "[RX %lums] unpack=%.2f  CRC recv=0x%02X calc=0x%02X %s\n",
+          millis(), temp, crcRx, crcCalc,
+          (crcRx==crcCalc) ? "OK" : "FAIL"
+        );
+        if (crcRx == crcCalc) {
+          // only push to MQTT on good CRC
+          float payload[] = { temp };
+          mqtt.sendData("temperature", payload, 1);
+        }
+        rxState = WAIT_HDR;
       }
     }
-  } */
-  if (lora.available() < 6) return;
-
-  uint8_t buf[6];
-  int len = lora.readBytes(buf, sizeof(buf));
-  if (len != sizeof(buf)) return;
-
-  // check header
-  if (buf[0] != HEADER) {
-    // drop first byte and realign on next loop
-    lora.read();  
-    return;
-  }
-
-  // extract float + CRC
-  float temp;
-  memcpy(&temp, buf + 1, sizeof(temp));
-  uint8_t crcRx   = buf[5];
-  uint8_t crcCalc = crc8(buf + 1, sizeof(temp));
-
-  if (crcRx == crcCalc) {
-    Serial.print(F("Got ← ")); Serial.println(temp, 2);
-    float payload[] = { temp };
-    mqtt.sendData("temperature", payload, 1);
-  } else {
-    Serial.println(F("CRC fail"));
   }
 
   mqtt.loop();
