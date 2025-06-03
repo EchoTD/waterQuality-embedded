@@ -16,7 +16,9 @@ static uint8_t  bufIndex    = 0;
 
 const char* mqttServer = "154.53.180.35";
 const int mqttPort = 1883;
-MQTTManager mqtt(mqttServer, mqttPort);
+const char* mqttUser = "myuser";
+const char* mqttPass = "12415500";
+MQTTManager mqtt(mqttServer, mqttPort, mqttUser, mqttPass);
 
 WiFiManager wm;
 
