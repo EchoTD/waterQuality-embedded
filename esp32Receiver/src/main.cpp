@@ -14,7 +14,7 @@ static RxState  rxState     = WAIT_HDR;
 static uint8_t  buf5[5];
 static uint8_t  bufIndex    = 0;
 
-const char* mqttServer = "172.34.6.157";
+const char* mqttServer = "154.53.180.35";
 const int mqttPort = 1883;
 MQTTManager mqtt(mqttServer, mqttPort);
 
