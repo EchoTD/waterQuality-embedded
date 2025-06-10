@@ -14,11 +14,20 @@ static RxState  rxState     = WAIT_HDR;
 static uint8_t  buf5[5];
 static uint8_t  bufIndex    = 0;
 
-const char* mqttServer = "154.53.180.35";
-const int mqttPort = 1883;
-const char* mqttUser = "myuser";
-const char* mqttPass = "12415500";
-MQTTManager mqtt(mqttServer, mqttPort, mqttUser, mqttPass);
+#ifndef MQTT_SERVER
+#define MQTT_SERVER ""
+#endif
+#ifndef MQTT_PORT
+#define MQTT_PORT 1883
+#endif
+#ifndef MQTT_USER
+#define MQTT_USER ""
+#endif
+#ifndef MQTT_PASS
+#define MQTT_PASS ""
+#endif
+
+MQTTManager mqtt(MQTT_SERVER, MQTT_PORT, MQTT_USER, MQTT_PASS);
 
 WiFiManager wm;
 
