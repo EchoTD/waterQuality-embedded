@@ -1,24 +1,38 @@
 #include <Arduino.h>
+#include "Pins.h"
 #include "SensorManager.h"
 
 // LoRa
 HardwareSerial lora(2);
-constexpr uint32_t LORA_BAUD   = 9600;
-constexpr uint8_t  PKT_HEADER  = 0xAA;
-static const uint8_t HANDSHAKE = 0x55;
 static bool rxReady = false;
+constexpr uint32_t LORA_BAUD   = 9600;
+static const uint8_t HANDSHAKE = 0x55;
+constexpr uint8_t SOF          = 0xAA;   // start-of-frame
+enum PktType : uint8_t {
+  PKT_TEMP = 0x01,
+  PKT_TDS  = 0x02,
+  PKT_BATT = 0x03,
+  PKT_TURB = 0x04
+};
 
 // Timing Config
-constexpr uint32_t SAMPLING_WINDOW_MS = 5000;
-constexpr uint32_t IDLE_WINDOW_MS     = 5000;
+constexpr uint32_t SAMPLING_WINDOW_MS = 10000;
+constexpr uint32_t IDLE_WINDOW_MS     = 10000;
 constexpr uint32_t SAMPLE_INTERVAL_MS = 1;
-
+constexpr uint32_t IDLE_POLL_MS       = 500;
+constexpr uint64_t DEEP_SLEEP_SEC     = 30;
 
 enum CycleState { SAMPLING, SENDING, IDLE };
 CycleState currentState = SAMPLING;
 
 // Object Inititaitons
 SensorManager sensorManager;
+void updateSampling();
+void updateSending();
+void updateIdle();
+uint8_t crc8(const uint8_t *data, size_t len);
+void sendValue(PktType type,float value);
+void printHexBuf(const uint8_t *buf, size_t len, const char *label);
 
 // Variables
 float     sumTemperature = 0.0f;
@@ -26,17 +40,10 @@ uint16_t  sampleCount    = 0;
 uint32_t  stateStartMs   = 0;
 uint32_t  lastSampleMs   = 0;
 
-void updateSampling();
-void updateSending();
-void updateIdle();
-uint8_t crc8(const uint8_t *data, size_t len);
-void sendTemperature(float value);
-void printHexBuf(const uint8_t *buf, size_t len, const char *label);
-
 void setup() {
   Serial.begin(115200);
   delay(1000);
-  lora.begin(LORA_BAUD, SERIAL_8N1, 16, 17);
+  lora.begin(LORA_BAUD, SERIAL_8N1, LORA_RX_PIN, LORA_TX_PIN);
   Serial.println(F("LoRa-TX   ——   system initialised"));
 
   sensorManager.begin();
@@ -99,41 +106,48 @@ void updateSampling() {
 }
 
 void updateSending() {
-  if (sampleCount == 0) {
-    Serial.println(F("No samples, skipping send"));
-  }
-  else {
-    const float avgTemp = sumTemperature / sampleCount;
-    sendTemperature(avgTemp);
+  float avgTemp = (sampleCount ? sumTemperature / sampleCount : NAN);
 
-    // Debug
-    Serial.print(F("Sent average temp: "));
-    Serial.println(avgTemp, 2);
-  }
+  SensorData s = sensorManager.getSensorData();     // latest full read
 
-  sumTemperature = 0.0f;
-  sampleCount    = 0;
+  sendValue(PKT_TEMP, avgTemp);
+  sendValue(PKT_TDS,  s.tds);
+  sendValue(PKT_BATT, s.battery);
+  sendValue(PKT_TURB, s.turbidityLow ? 1.0f : 0.0f);
+
+  Serial.printf("TX ▶ T=%.2f  TDS=%.0f  Vbat=%.2f  Turb=%d\n",
+                avgTemp, s.tds, s.battery, s.turbidityLow);
+
+  // reset accumulators
+  sumTemperature = 0.0f; sampleCount = 0;
 
   currentState = IDLE;
   stateStartMs = millis();
 }
 
-void updateIdle() {
-  if (millis() - stateStartMs >= IDLE_WINDOW_MS) {
-    currentState = SAMPLING;
-    stateStartMs = millis();
+void updateIdle() 
+{
+  // 1) light-sleep chunk
+  if (millis() - stateStartMs < IDLE_WINDOW_MS) {
+    vTaskDelay(IDLE_POLL_MS / portTICK_PERIOD_MS);
+    return;                               // stay in IDLE
   }
+  // 2) full deep-sleep
+  esp_sleep_enable_timer_wakeup(DEEP_SLEEP_SEC * 1000000ULL);
+  Serial.println(F("💤 deep-sleep…"));
+  Serial.flush();
+  esp_deep_sleep_start();
 }
 
-void sendTemperature(float value) {
-  uint8_t payload[4];
-  memcpy(payload, &value, sizeof(value));          // little-endian
+void sendValue(PktType type, float val) {
+  uint8_t frame[1 /*SOF*/ + 1 /*type*/ + 4 /*float*/];
+  frame[0] = type;
+  memcpy(frame + 1, &val, sizeof(val));
+  uint8_t crc = crc8(frame, sizeof(frame));
 
-  const uint8_t crc = crc8(payload, sizeof(payload));
-
-  lora.write(PKT_HEADER);                          // 1 B header
-  lora.write(payload, sizeof(payload));            // 4 B float
-  lora.write(crc);                                 // 1 B CRC
+  lora.write(SOF);
+  lora.write(frame, sizeof(frame));
+  lora.write(crc);
 }
 
 uint8_t crc8(const uint8_t *data, size_t len) {
