@@ -65,7 +65,7 @@ void setup() {
   lora.begin(BAUD, SERIAL_8N1, 16, 17);
   lora.write(HANDSHAKE);
 
-  mqtt.begin();
+  //mqtt.begin();
   Serial.println("LoRa RX ready");
 }
 
@@ -98,5 +98,5 @@ void loop() {
       }
     }
   }
-  mqtt.loop();
+  //mqtt.loop();
 }
