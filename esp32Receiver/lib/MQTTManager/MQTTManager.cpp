@@ -20,18 +20,21 @@ void MQTTManager::begin() {
 
 bool MQTTManager::sendData(const char* sensorType, float data[], int dataSize) {
   if (!_mqttClient.connected()) connectMQTT();
-  
+
   StaticJsonDocument<256> doc;
-  if (dataSize > 0) {
-      doc["temperature"] = data[0];
+  if (dataSize == 1) {
+    doc["value"] = data[0];
+  } else {
+    JsonArray a = doc.createNestedArray("values");
+    for (int i = 0; i < dataSize; ++i) a.add(data[i]);
   }
   doc["type"] = sensorType;
 
   char payload[256];
   serializeJson(doc, payload);
 
-  char topic[32];
-  snprintf(topic, 32, "sensors/%s", sensorType);
+  char topic[48];
+  snprintf(topic, sizeof(topic), "sensors/%s", sensorType);
   return _mqttClient.publish(topic, payload);
 }
 
