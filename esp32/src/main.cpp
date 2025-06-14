@@ -36,10 +36,11 @@ void sendValue(PktType type,float value);
 void printHexBuf(const uint8_t *buf, size_t len, const char *label);
 
 // Variables
-float     sumTemperature = 0.0f;
-uint16_t  sampleCount    = 0;
-uint32_t  stateStartMs   = 0;
-uint32_t  lastSampleMs   = 0;
+float     sumTemperature = 0.0f;   uint16_t cntTemp = 0;
+float     sumTDS         = 0.0f;   uint16_t cntTDS  = 0;
+float     sumTurb        = 0.0f;   uint16_t cntTurb = 0;
+uint32_t  stateStartMs    = 0;
+uint32_t  lastSampleMs    = 0;
 
 void setup() {
   Serial.begin(115200);
@@ -60,7 +61,7 @@ void loop() {
         Serial.println(F("Handshake received ▶ start TX"));
       }
     }
-    return;  // don’t sample or send until handshake
+    return;
   }
   
   switch (currentState) {
@@ -88,15 +89,10 @@ void updateSampling() {
     sensorManager.update();
     SensorData data = sensorManager.getSensorData();
 
-    if (!isnan(data.temperature)){
-      sumTemperature += data.temperature;
-      sampleCount++;
+    if (!isnan(data.temperature)) { sumTemperature  += data.temperature; cntTemp++; }
+    if (!isnan(data.tdsValue))    { sumTDS          += data.tdsValue;    cntTDS++;  }
+    if (!isnan(data.turbidity))   { sumTurb         += data.turbidity;   cntTurb++; }
 
-      // Debug
-      Serial.print(data.temperature);
-      Serial.print("\t");
-      Serial.println(sampleCount);
-    }
     lastSampleMs = now;
   }
 
@@ -107,20 +103,23 @@ void updateSampling() {
 }
 
 void updateSending() {
-  float avgTemp = (sampleCount ? sumTemperature / sampleCount : NAN);
+  float avgTemp = cntTemp ? sumTemperature / cntTemp : NAN;
+  float avgTDS  = cntTDS  ? sumTDS        / cntTDS  : NAN;
+  float avgTurb = cntTurb ? sumTurb       / cntTurb : NAN;
 
-  SensorData s = sensorManager.getSensorData();     // latest full read
+  // Debug
+  Serial.printf("[DBG] samples T=%u  TDS=%u  Turb=%u\n",
+                cntTemp, cntTDS, cntTurb);
+  Serial.printf("[DBG] averages T=%.2f °C  TDS=%.0f ppm  Turb=%.2f NTU\n",
+                avgTemp, avgTDS, avgTurb);
 
   sendValue(PKT_TEMP, avgTemp);
-  sendValue(PKT_TDS,  s.tdsValue);
-  sendValue(PKT_BATT, s.battery);
-  sendValue(PKT_TURB, s.turbidity);
-
-  Serial.printf("TX ▶ T=%.2f  TDS=%.0f  Vbat=%.2f  Turb=%.2f\n",
-                avgTemp, s.tdsValue, s.battery, s.turbidity);
+  sendValue(PKT_TDS,  avgTDS);
+  sendValue(PKT_TURB, avgTurb);
 
   // reset accumulators
-  sumTemperature = 0.0f; sampleCount = 0;
+  sumTemperature = sumTDS = sumTurb = 0.0f;
+  cntTemp = cntTDS = cntTurb = 0;
 
   currentState = IDLE;
   stateStartMs = millis();
@@ -128,12 +127,10 @@ void updateSending() {
 
 void updateIdle() 
 {
-  // 1) light-sleep chunk
   if (millis() - stateStartMs < IDLE_WINDOW_MS) {
     vTaskDelay(IDLE_POLL_MS / portTICK_PERIOD_MS);
-    return;                               // stay in IDLE
+    return;
   }
-  // 2) full deep-sleep
   esp_sleep_enable_timer_wakeup(DEEP_SLEEP_SEC * 1000000ULL);
   Serial.println(F("💤 deep-sleep…"));
   Serial.flush();
