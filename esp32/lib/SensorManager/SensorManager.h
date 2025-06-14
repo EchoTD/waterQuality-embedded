@@ -20,10 +20,12 @@ private:
     OneWire oneWire;
     DallasTemperature tempSensor;
 
-    //TinyGPSPlus gps;
-    //HardwareSerial gpsSerial(2);
-
+    void readTDS();
+    void readTurbidity();
     void readTemperature();
+
+    float ntu;
+    float calibrationFactor;
 };
 
 #endif

@@ -4,10 +4,10 @@
 #include <Arduino.h>
 
 #pragma once
-#define TEMP_SENSOR_PIN 32
+#define TEMP_SENSOR_PIN 4
 #define TDS_PIN         34
 #define TURB_PIN        35
-#define VOLT_PIN        
+#define VOLT_PIN        32
 //#define FLOW1_PIN       17
 //#define FLOW2_PIN       16
 

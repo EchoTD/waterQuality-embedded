@@ -7,7 +7,8 @@ HardwareSerial lora(2);
 static bool rxReady = false;
 constexpr uint32_t LORA_BAUD   = 9600;
 static const uint8_t HANDSHAKE = 0x55;
-constexpr uint8_t SOF          = 0xAA;   // start-of-frame
+constexpr uint8_t SOF          = 0xAA;   
+
 enum PktType : uint8_t {
   PKT_TEMP = 0x01,
   PKT_TDS  = 0x02,
@@ -111,12 +112,12 @@ void updateSending() {
   SensorData s = sensorManager.getSensorData();     // latest full read
 
   sendValue(PKT_TEMP, avgTemp);
-  sendValue(PKT_TDS,  s.tds);
+  sendValue(PKT_TDS,  s.tdsValue);
   sendValue(PKT_BATT, s.battery);
-  sendValue(PKT_TURB, s.turbidityLow ? 1.0f : 0.0f);
+  sendValue(PKT_TURB, s.turbidity);
 
-  Serial.printf("TX ▶ T=%.2f  TDS=%.0f  Vbat=%.2f  Turb=%d\n",
-                avgTemp, s.tds, s.battery, s.turbidityLow);
+  Serial.printf("TX ▶ T=%.2f  TDS=%.0f  Vbat=%.2f  Turb=%.2f\n",
+                avgTemp, s.tdsValue, s.battery, s.turbidity);
 
   // reset accumulators
   sumTemperature = 0.0f; sampleCount = 0;

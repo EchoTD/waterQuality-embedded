@@ -5,9 +5,9 @@
 
 typedef struct {
     float temperature;      // in °C
-    float tds;              // ppm
+    float tdsValue;         // ppm
     float battery;          // V
-    bool turbidityLow;      // 1 = Clear
+    float turbidity;      
 
 } SensorData;
 
