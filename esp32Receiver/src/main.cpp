@@ -62,7 +62,7 @@ void setup()
   lora.write(HANDSHAKE);
   Serial.println("[BOOT] RX → handshake sent");
 
-  //mqttManager.begin();
+  mqttManager.begin();
 }
 
 void loop()
@@ -87,9 +87,9 @@ void loop()
 
           Serial.printf("[OK] 0x%02X  %.2f\n", type, u.f);
 
-          /* float v[1] = { u.f };
+          float v[1] = { u.f };
           if (!mqttManager.sendData(pktName(type), v, 1))
-            Serial.println("[MQTT] publish failed"); */
+            Serial.println("[MQTT] publish failed");
 
           lastGoodMs = millis();
         } else {
@@ -117,7 +117,7 @@ void loop()
   }
 
   // MQTT Loop
-  //mqttManager.loop();
+  mqttManager.loop();
 }
 
 // Helpers
