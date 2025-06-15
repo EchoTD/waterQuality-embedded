@@ -13,5 +13,6 @@
 
 #define LORA_RX_PIN     16
 #define LORA_TX_PIN     17
+#define LORA_AUX_PIN    25
 
 #endif
